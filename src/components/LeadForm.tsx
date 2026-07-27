@@ -53,7 +53,6 @@ const leadSchema = z.object({
   }),
   contactTime: z.enum(CONTACT_TIME_OPTIONS).optional(),
   details: z.string().trim().max(1000, "Keep it under 1000 characters").optional(),
-  // Hidden honeypot field for anti-spam filtering
   website: z.string().optional(),
 });
 
@@ -74,16 +73,10 @@ export function LeadForm() {
   });
 
   const onSubmit = async (values: LeadFormValues) => {
-    // If honeypot field is filled by a bot, silently fake success without posting
-    if (values.website && values.website.trim().length > 0) {
-      setStatus("success");
-      return;
-    }
-
     setStatus("submitting");
+
     try {
       if (siteConfig.leadWebhookUrl) {
-        // Construct exact JSON payload expected by n8n
         const payload = {
           name: values.fullName,
           email: values.email,
@@ -97,6 +90,8 @@ export function LeadForm() {
           submittedAt: new Date().toISOString(),
         };
 
+        console.log("Submitting lead payload to n8n:", siteConfig.leadWebhookUrl, payload);
+
         const res = await fetch(siteConfig.leadWebhookUrl, {
           method: "POST",
           headers: {
@@ -106,12 +101,15 @@ export function LeadForm() {
           body: JSON.stringify(payload),
         });
 
+        console.log("n8n Webhook HTTP response status:", res.status);
+
         if (!res.ok) throw new Error(`Webhook responded with status ${res.status}`);
 
-        // Validate JSON response shape from n8n: { "status": "success", "message": "..." }
         const data = await res.json().catch(() => null);
+        console.log("n8n Webhook response data:", data);
+
         if (data && data.status && data.status !== "success") {
-          throw new Error(data.message || "Webhook reported a non-success status");
+          throw new Error(data.message || "Webhook reported non-success status");
         }
       }
       setStatus("success");
@@ -145,7 +143,7 @@ export function LeadForm() {
       noValidate
       className="rounded-3xl border border-white/10 bg-[#131313]/60 backdrop-blur-xl p-6 sm:p-8 shadow-[0_24px_80px_rgba(0,0,0,0.6)] max-w-2xl mx-auto w-full relative"
     >
-      {/* Visually hidden honeypot input (position: absolute; left: -9999px) */}
+      {/* Visually hidden honeypot input */}
       <div
         style={{
           position: "absolute",
@@ -159,12 +157,13 @@ export function LeadForm() {
         }}
         aria-hidden="true"
       >
-        <label htmlFor="companyWebsite">Company Website</label>
+        <label htmlFor="hpWebsite">Company Website</label>
         <input
-          id="companyWebsite"
+          id="hpWebsite"
           type="text"
           tabIndex={-1}
-          autoComplete="off"
+          autoComplete="new-password"
+          data-1p-ignore="true"
           {...register("website")}
         />
       </div>
