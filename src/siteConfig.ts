@@ -8,10 +8,10 @@ export const siteConfig = {
   licenseNumber: "HVAC-0042719",
   footerYear: new Date().getFullYear(),
 
-  // Production n8n webhook URL
+  // Test n8n webhook URL
   leadWebhookUrl:
     (import.meta.env.VITE_N8N_WEBHOOK_URL as string | undefined) ||
-    "https://balochbb.app.n8n.cloud/webhook/lead-capture",
+    "https://balochbb.app.n8n.cloud/webhook-test/lead-capture",
 };
 
 export type SiteConfig = typeof siteConfig;
