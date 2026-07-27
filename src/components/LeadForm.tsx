@@ -53,6 +53,8 @@ const leadSchema = z.object({
   }),
   contactTime: z.enum(CONTACT_TIME_OPTIONS).optional(),
   details: z.string().trim().max(1000, "Keep it under 1000 characters").optional(),
+  // Hidden honeypot field for anti-spam filtering
+  website: z.string().optional(),
 });
 
 type LeadFormValues = z.infer<typeof leadSchema>;
@@ -72,6 +74,12 @@ export function LeadForm() {
   });
 
   const onSubmit = async (values: LeadFormValues) => {
+    // If honeypot field is filled by a bot, silently fake success without posting
+    if (values.website && values.website.trim().length > 0) {
+      setStatus("success");
+      return;
+    }
+
     setStatus("submitting");
     try {
       if (siteConfig.leadWebhookUrl) {
@@ -80,7 +88,14 @@ export function LeadForm() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...values, submittedAt: new Date().toISOString() }),
         });
-        if (!res.ok) throw new Error(`Webhook responded with ${res.status}`);
+
+        if (!res.ok) throw new Error(`Webhook responded with status ${res.status}`);
+
+        // Validate JSON response shape from n8n: { "status": "success", "message": "..." }
+        const data = await res.json().catch(() => null);
+        if (data && data.status && data.status !== "success") {
+          throw new Error(data.message || "Webhook reported a non-success status");
+        }
       }
       setStatus("success");
     } catch (err) {
@@ -111,8 +126,32 @@ export function LeadForm() {
     <form
       onSubmit={handleSubmit(onSubmit)}
       noValidate
-      className="rounded-3xl border border-white/10 bg-[#131313]/60 backdrop-blur-xl p-6 sm:p-8 shadow-[0_24px_80px_rgba(0,0,0,0.6)] max-w-2xl mx-auto w-full"
+      className="rounded-3xl border border-white/10 bg-[#131313]/60 backdrop-blur-xl p-6 sm:p-8 shadow-[0_24px_80px_rgba(0,0,0,0.6)] max-w-2xl mx-auto w-full relative"
     >
+      {/* Visually hidden honeypot input (position: absolute; left: -9999px) */}
+      <div
+        style={{
+          position: "absolute",
+          left: "-9999px",
+          top: "-9999px",
+          width: "1px",
+          height: "1px",
+          opacity: 0,
+          overflow: "hidden",
+          zIndex: -1,
+        }}
+        aria-hidden="true"
+      >
+        <label htmlFor="companyWebsite">Company Website</label>
+        <input
+          id="companyWebsite"
+          type="text"
+          tabIndex={-1}
+          autoComplete="off"
+          {...register("website")}
+        />
+      </div>
+
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="fullName" className="text-white/80 font-kanit text-xs tracking-wider uppercase">Full Name</Label>
