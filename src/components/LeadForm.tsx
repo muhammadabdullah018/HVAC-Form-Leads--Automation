@@ -83,10 +83,27 @@ export function LeadForm() {
     setStatus("submitting");
     try {
       if (siteConfig.leadWebhookUrl) {
+        // Construct exact JSON payload expected by n8n
+        const payload = {
+          name: values.fullName,
+          email: values.email,
+          phone: values.phone,
+          service: values.serviceNeeded,
+          message: values.details || "",
+          website: values.website || "",
+          address: values.address,
+          urgency: values.urgency,
+          contactTime: values.contactTime || "Anytime",
+          submittedAt: new Date().toISOString(),
+        };
+
         const res = await fetch(siteConfig.leadWebhookUrl, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...values, submittedAt: new Date().toISOString() }),
+          headers: {
+            "Content-Type": "application/json",
+            "X-Webhook-Secret": import.meta.env.VITE_WEBHOOK_SECRET || "baloch..?123+**",
+          },
+          body: JSON.stringify(payload),
         });
 
         if (!res.ok) throw new Error(`Webhook responded with status ${res.status}`);
