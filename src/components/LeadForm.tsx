@@ -76,45 +76,50 @@ export function LeadForm() {
     setStatus("submitting");
 
     try {
-      if (siteConfig.leadWebhookUrl) {
-        const payload = {
-          name: values.fullName,
-          email: values.email,
-          phone: values.phone,
-          service: values.serviceNeeded,
-          message: values.details || "",
-          website: values.website || "",
-          address: values.address,
-          urgency: values.urgency,
-          contactTime: values.contactTime || "Anytime",
-          submittedAt: new Date().toISOString(),
-        };
+      const webhookUrl =
+        siteConfig.leadWebhookUrl || "https://balochbb.app.n8n.cloud/webhook/lead-capture";
 
-        console.log("Submitting lead payload to n8n:", siteConfig.leadWebhookUrl, payload);
+      const payload = {
+        name: values.fullName,
+        email: values.email,
+        phone: values.phone,
+        service: values.serviceNeeded,
+        message: values.details || "",
+        website: values.website || "",
+        address: values.address,
+        urgency: values.urgency,
+        contactTime: values.contactTime || "Anytime",
+        submittedAt: new Date().toISOString(),
+      };
 
-        const res = await fetch(siteConfig.leadWebhookUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Webhook-Secret": import.meta.env.VITE_WEBHOOK_SECRET || "baloch..?123+**",
-          },
-          body: JSON.stringify(payload),
-        });
+      console.log("Posting lead to n8n webhook:", webhookUrl, payload);
 
-        console.log("n8n Webhook HTTP response status:", res.status);
+      const res = await fetch(webhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Webhook-Secret": import.meta.env.VITE_WEBHOOK_SECRET || "baloch..?123+**",
+        },
+        body: JSON.stringify(payload),
+      });
 
-        if (!res.ok) throw new Error(`Webhook responded with status ${res.status}`);
+      console.log("n8n Webhook response status code:", res.status);
 
-        const data = await res.json().catch(() => null);
-        console.log("n8n Webhook response data:", data);
-
-        if (data && data.status && data.status !== "success") {
-          throw new Error(data.message || "Webhook reported non-success status");
-        }
+      if (!res.ok) {
+        throw new Error(`n8n Webhook HTTP error: ${res.status}`);
       }
+
+      const data = await res.json().catch(() => null);
+      console.log("n8n Webhook parsed JSON response:", data);
+
+      if (data && data.status && data.status !== "success") {
+        throw new Error(data.message || "n8n returned a non-success status");
+      }
+
+      // ONLY set success AFTER the fetch call completes with HTTP 200 OK
       setStatus("success");
     } catch (err) {
-      console.error("Lead submission failed:", err);
+      console.error("Lead submission to n8n failed:", err);
       setStatus("error");
     }
   };
